@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 
-project(AudioLibraryRosettaStone VERSION 0.1 LANGUAGES CXX)
+project(AudioLibraryRosettaStone VERSION 0.1 LANGUAGES C CXX)
 
 ## Configure global settings
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -29,9 +29,10 @@ find_package(ALSA REQUIRED)
 
 ## Application
 
-add_executable(alsa
-    alsa.cpp
-)
-target_link_libraries(alsa
-    PRIVATE ALSA::ALSA
-)
+add_executable(alsa alsa.cpp)
+target_compile_options(alsa PRIVATE "${options}")
+target_link_libraries(alsa PRIVATE ALSA::ALSA)
+
+add_executable(pcm_min pcm_min.c)
+target_compile_options(pcm_min PRIVATE "${options}")
+target_link_libraries(pcm_min PRIVATE ALSA::ALSA)
