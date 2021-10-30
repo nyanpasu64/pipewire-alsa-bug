@@ -17,7 +17,7 @@ double volume = 0.2;
 
 float mixbuffer[4096*256];
 int16_t outbuffer[4096*256];
-void mix_sine(float * buffer, uint64_t count, uint64_t samplerate, uint64_t channels, uint64_t time)
+static void mix_sine(float * buffer, uint64_t count, uint64_t samplerate, uint64_t channels, uint64_t time)
 {
     double nyquist = samplerate/2.0;
     for(uint64_t i = 0; i < count; i++)

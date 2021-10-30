@@ -2,7 +2,7 @@
  *  This extra small demo sends a random samples to your speakers.
  */
 
-#include "../include/asoundlib.h"
+#include <alsa/asoundlib.h>
 
 static char *device = "default";            /* playback device */
 unsigned char buffer[16*1024];              /* some random data */
