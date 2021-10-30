@@ -66,6 +66,8 @@ public:
 static char const *device = "default";            /* playback device */
 unsigned char buffer[16*1024];              /* some random data */
 
+int drain = 0;
+
 static void thread_fn(Mutex<snd_pcm_t *> & mutex) {
     using namespace std::chrono_literals;
 
@@ -77,6 +79,17 @@ static void thread_fn(Mutex<snd_pcm_t *> & mutex) {
 
         auto guard = mutex.lock();
         auto handle = *guard;
+
+        snd_pcm_state_t state = snd_pcm_state(handle);
+        std::cerr << "state " << state << "\n";
+//        if (state != SND_PCM_STATE_PREPARED && state != SND_PCM_STATE_RUNNING) {
+        if (drain) {
+            drain--;
+//            drain = false;
+            snd_pcm_drain(handle);
+            std::cerr << "new state " << snd_pcm_state(handle) << "\n";
+            snd_pcm_prepare(handle);
+        }
 
         frames = snd_pcm_writei(handle, buffer, sizeof(buffer));
         if (frames < 0)
@@ -92,13 +105,11 @@ static void thread_fn(Mutex<snd_pcm_t *> & mutex) {
 
 int main(void)
 {
-    int err;
-    unsigned int i;
-    snd_pcm_t *handle;
-
-    for (i = 0; i < sizeof(buffer); i++)
+    for (size_t i = 0; i < sizeof(buffer); i++)
         buffer[i] = random() & 0xff;
 
+    int err;
+    snd_pcm_t *handle;
     if ((err = snd_pcm_open(&handle, device, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
         printf("Playback open error: %s\n", snd_strerror(err));
         exit(EXIT_FAILURE);
@@ -126,7 +137,6 @@ int main(void)
         std::cerr << "Mutex locked.\n";
 
         auto handle = *guard;
-        snd_pcm_drain(handle);
-        snd_pcm_prepare(handle);
+        drain = 4;
     }
 }
