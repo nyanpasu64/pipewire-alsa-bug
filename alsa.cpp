@@ -93,7 +93,7 @@ int main()
 
     uint64_t t = 0;
     uint64_t drains = 0;
-    while(t < 100'000)
+    while(1)
     {
 //        {
 //            auto count = t / 10'000;
