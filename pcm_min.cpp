@@ -4,6 +4,68 @@
 
 #include <alsa/asoundlib.h>
 
+#include <memory>
+#include <mutex>
+#include <optional>
+
+template<typename Ptr>
+class [[nodiscard]] Guard {
+    std::unique_lock<std::mutex> _guard;
+    Ptr _value;
+
+private:
+    /// Don't lock std::unique_lock; the factory methods will lock it.
+    Guard(std::mutex & mutex, Ptr value) :
+        _guard{mutex, std::defer_lock_t{}}, _value{value}
+    {}
+
+public:
+    static Guard make(std::mutex & mutex, Ptr value) {
+        Guard guard{mutex, value};
+        guard._guard.lock();
+        return guard;
+    }
+
+    static std::optional<Guard> try_make(std::mutex & mutex, Ptr value) {
+        Guard guard{mutex, value};
+        if (guard._guard.try_lock()) {
+            return guard;
+        } else {
+            return {};
+        }
+    }
+
+    explicit operator bool() const noexcept {
+        return _guard.operator bool();
+    }
+
+    typename std::pointer_traits<Ptr>::element_type & operator*() {
+        return *_value;
+    }
+
+    Ptr operator->() {
+        return _value;
+    }
+};
+
+template<typename T>
+class Mutex {
+    mutable std::mutex _mutex;
+    T _value;
+
+public:
+    explicit Mutex(T value) : _value(std::move(value)) {}
+
+    using Ptr = T *;
+
+    using Guard = Guard<Ptr>;
+
+    /// Only call this in the GUI thread.
+    Guard lock() {
+        return Guard::make(_mutex, &_value);
+    }
+};
+
 static char const *device = "default";            /* playback device */
 unsigned char buffer[16*1024];              /* some random data */
 
