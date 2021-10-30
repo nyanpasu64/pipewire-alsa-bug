@@ -1,12 +1,11 @@
-/*
- *  This extra small demo sends a random samples to your speakers.
- */
-
 #include <alsa/asoundlib.h>
 
+#include <chrono>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <thread>
 
 template<typename Ptr>
 class [[nodiscard]] Guard {
@@ -56,25 +55,46 @@ class Mutex {
 public:
     explicit Mutex(T value) : _value(std::move(value)) {}
 
-    using Ptr = T *;
-
-    using Guard = Guard<Ptr>;
+    using GuardT = Guard<T *>;
 
     /// Only call this in the GUI thread.
-    Guard lock() {
-        return Guard::make(_mutex, &_value);
+    GuardT lock() {
+        return GuardT::make(_mutex, &_value);
     }
 };
 
 static char const *device = "default";            /* playback device */
 unsigned char buffer[16*1024];              /* some random data */
 
+static void thread_fn(Mutex<snd_pcm_t *> & mutex) {
+    using namespace std::chrono_literals;
+
+    snd_pcm_sframes_t frames;
+
+    while (1) {
+        // If you don't sleep, the main thread *never* gets to acquire the mutex.
+        std::this_thread::sleep_for(5ms);
+
+        auto guard = mutex.lock();
+        auto handle = *guard;
+
+        frames = snd_pcm_writei(handle, buffer, sizeof(buffer));
+        if (frames < 0)
+            frames = snd_pcm_recover(handle, frames, 0);
+        if (frames < 0) {
+            printf("snd_pcm_writei failed: %s\n", snd_strerror(frames));
+            break;
+        }
+        if (frames > 0 && frames < (long)sizeof(buffer))
+            printf("Short write (expected %li, wrote %li)\n", (long)sizeof(buffer), frames);
+    }
+}
+
 int main(void)
 {
     int err;
     unsigned int i;
     snd_pcm_t *handle;
-    snd_pcm_sframes_t frames;
 
     for (i = 0; i < sizeof(buffer); i++)
         buffer[i] = random() & 0xff;
@@ -94,26 +114,19 @@ int main(void)
         exit(EXIT_FAILURE);
     }
 
-    while (1) {
-        frames = snd_pcm_writei(handle, buffer, sizeof(buffer));
-        if (frames < 0)
-            frames = snd_pcm_recover(handle, frames, 0);
-        if (frames < 0) {
-            printf("snd_pcm_writei failed: %s\n", snd_strerror(frames));
-            break;
-        }
-        if (frames > 0 && frames < (long)sizeof(buffer))
-            printf("Short write (expected %li, wrote %li)\n", (long)sizeof(buffer), frames);
+    auto mutex = Mutex(handle);
+    handle = nullptr;
 
+    auto thread = std::thread(thread_fn, std::ref(mutex));
+
+    while (true) {
+        std::cin.get();
+        std::cerr << "Draining...\n";
+        auto guard = mutex.lock();
+        std::cerr << "Mutex locked.\n";
+
+        auto handle = *guard;
         snd_pcm_drain(handle);
-        snd_pcm_state(handle);
         snd_pcm_prepare(handle);
     }
-
-    /* pass the remaining samples, otherwise they're dropped in close */
-    err = snd_pcm_drain(handle);
-    if (err < 0)
-        printf("snd_pcm_drain failed: %s\n", snd_strerror(err));
-    snd_pcm_close(handle);
-    return 0;
 }
