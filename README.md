@@ -8,7 +8,7 @@ This is a CMake project with two executables, alsa and pcm_min (corresponding to
 
 alsa.cpp is designed to only call `snd_pcm_writei` based on the available room as measured by `snd_pcm_avail_update`, to avoid blocking. I'm not sure it's a good design. The issue is that on pipewire-alsa, with no other audio streams open, `snd_pcm_avail_update` never increases until you issue a blocking call to `snd_pcm_writei`. And since alsa.cpp is waiting for `snd_pcm_avail_update` to increase before calling `snd_pcm_writei`, it never makes progress. I'm not sure if this is a pipewire-alsa bug, or if alsa.cpp is making too many assumptions about `snd_pcm_avail_update`.
 
-Apparently, not calling `snd_pcm_writei` puts pipewire into a state where all other apps are stalled. I would classify this as a pipewire-alsa bug, since I *think* the better solution is to underrun "alsa" and let other apps keep playing audio.
+Additionally, launching "alsa" without a stream already playing puts pipewire into a state where all other apps are stalled. In the current state, the program loops on `snd_pcm_avail_update` and stalls pipewire. If you change the program to ignore `snd_pcm_avail_update` and set `render` to a nonzero quantity (regardless if it's 1024, less, or greater), it blocks on `snd_pcm_writei` and stalls pipewire. This is a nasty pipewire/pipewire-alsa bug, possibly caused by the buffer size/count configuration chosen by alsa.cpp.
 
 ## pcm_min.cpp
 
