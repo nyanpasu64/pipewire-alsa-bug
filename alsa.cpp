@@ -29,8 +29,12 @@ static void mix_sine(float * buffer, uint64_t count, uint64_t samplerate, uint64
     }
 }
 
+#define perr(...) fprintf(stderr, __VA_ARGS__)
+
 int main()
 {
+    using namespace std::chrono_literals;
+
     snd_pcm_t * device;
     snd_pcm_hw_params_t * parameters;
 
@@ -58,7 +62,7 @@ int main()
     if(snd_pcm_hw_params_set_channels(device, parameters, channels) < 0)
         return puts("Failed to set channel count"), 0;
 
-    printf("actual sample rate %d\n", samplerate);
+    perr("actual sample rate %d\n", samplerate);
 
     snd_pcm_uframes_t period;
     int dir;
@@ -66,13 +70,13 @@ int main()
     if(snd_pcm_hw_params_get_period_size_min(parameters, &period, &dir) < 0)
         return puts("Failed to get period size"), 0;
 
-    printf("min period size: %lu\n", period);
+    perr("min period size: %lu\n", period);
 
     if(snd_pcm_hw_params_set_period_size(device, parameters, period, dir) < 0)
         return puts("Failed to set period size to the minimum provided by it"), 0;
 
     snd_pcm_uframes_t samples = max(period, 1024);
-    printf("pretend buffer size is %lu\n", samples);
+    perr("pretend buffer size is %lu\n", samples);
 
     if(snd_pcm_hw_params_set_buffer_size_near(device, parameters, &samples) < 0)
         return puts("Failed to set buffer size to something near our sample window"), 0;
@@ -85,40 +89,19 @@ int main()
     if (snd_pcm_prepare(device) < 0)
         return puts("Failed to prepare device"), 0;
 
-    auto buffer_size = snd_pcm_avail_update(device);
-    if(buffer_size < 0)
-        return puts("Error when measuring approximate buffer size"), 0;
-
-    printf("apparent buffer size is %lu\n", buffer_size);
-
     uint64_t t = 0;
-    uint64_t drains = 0;
     while(1)
     {
-//        {
-//            auto count = t / 10'000;
-//            if (count > drains)
-//            {
-//                snd_pcm_drain(device);
-//                snd_pcm_prepare(device);
-//                drains = count;
-//            }
-//        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        auto avail = snd_pcm_avail_update(device);
-        while(avail == -EPIPE or avail == -ESTRPIPE)
-        {
-            snd_pcm_recover(device, avail, 0);
-            avail = snd_pcm_avail_update(device);
+        if (t > 100'000) {
+            perr("sleeping for 1000ms\n");
+            std::this_thread::sleep_for(1000ms);
+            t = t % 100'000;
+        } else {
+            perr("sleeping for 1ms\n");
+            std::this_thread::sleep_for(1ms);
         }
-        printf("avail = %ld\n", avail);
-        if (avail <= 0) {
-            continue;
-        }
-        int padding = buffer_size - avail;
 
-        int render = min(uint64_t(buffer_size), samples) - padding;
-
+        int render = samples / 2;
         if(render > 0)
         {
             mix_sine(mixbuffer, render, samplerate, 2, t);
@@ -127,7 +110,9 @@ int main()
             for(int i = 0; i < render*2; i++)
                 outbuffer[i] = round(mixbuffer[i]*0x7FFF);
 
+            perr("writing...\n");
             auto written = snd_pcm_writei(device, outbuffer, render);
+            perr("done.\n");
 
             while(written == -EPIPE or written == -ESTRPIPE)
             {
