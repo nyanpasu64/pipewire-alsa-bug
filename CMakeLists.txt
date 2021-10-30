@@ -33,6 +33,6 @@ add_executable(alsa alsa.cpp)
 target_compile_options(alsa PRIVATE "${options}")
 target_link_libraries(alsa PRIVATE ALSA::ALSA)
 
-add_executable(pcm_min pcm_min.c)
+add_executable(pcm_min pcm_min.cpp)
 target_compile_options(pcm_min PRIVATE "${options}")
 target_link_libraries(pcm_min PRIVATE ALSA::ALSA)
