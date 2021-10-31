@@ -125,14 +125,7 @@ static void thread_fn(Mutex<snd_pcm_t *> & mutex) {
     }
 }
 
-int main(void)
-{
-    for (size_t i = 0; i < sizeof(buffer); i++)
-        buffer[i] = random() & 0xff;
-
-    auto mutex = Mutex((snd_pcm_t *) nullptr);
-    auto thread = std::thread(thread_fn, std::ref(mutex));
-
+static void main_fn(Mutex<snd_pcm_t *> & mutex) {
     while (true) {
         std::cin.get();
         std::cerr << "Draining...\n";
@@ -142,4 +135,14 @@ int main(void)
         auto handle = *guard;
         drain = 1;
     }
+}
+
+int main(void)
+{
+    for (size_t i = 0; i < sizeof(buffer); i++)
+        buffer[i] = random() & 0xff;
+
+    auto mutex = Mutex((snd_pcm_t *) nullptr);
+    auto thread = std::thread(thread_fn, std::ref(mutex));
+    main_fn(mutex);
 }
