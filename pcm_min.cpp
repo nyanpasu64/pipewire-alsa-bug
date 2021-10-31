@@ -35,7 +35,10 @@ int main(void)
         exit(EXIT_FAILURE);
     }
 
+    unsigned ctr = 0;
+
     while (1) {
+        printf("before writei %d\n", snd_pcm_state(handle));
         frames = snd_pcm_writei(handle, buffer, sizeof(buffer));
         if (frames < 0)
             frames = snd_pcm_recover(handle, frames, 0);
@@ -46,9 +49,14 @@ int main(void)
         if (frames > 0 && frames < (long)sizeof(buffer))
             printf("Short write (expected %li, wrote %li)\n", (long)sizeof(buffer), frames);
 
-        snd_pcm_drain(handle);
-        snd_pcm_state(handle);
-        snd_pcm_prepare(handle);
+        ctr += 1;
+        if (ctr >= 8 && ctr != 9) {
+//            ctr -= 2;
+            printf("before drain, state %d\n", snd_pcm_state(handle));
+            snd_pcm_drain(handle);
+            printf("before prepare, state %d\n", snd_pcm_state(handle));
+            snd_pcm_prepare(handle);
+        }
     }
 
     /* pass the remaining samples, otherwise they're dropped in close */
