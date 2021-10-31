@@ -39,7 +39,7 @@ static void fn() {
         snd_pcm_state_t state = snd_pcm_state(handle);
         std::cerr << "state " << state << "\n";
 //        if (state != SND_PCM_STATE_PREPARED && state != SND_PCM_STATE_RUNNING) {
-        if (drain % 4 == 2) {
+        if (drain % 4 == 0) {
             snd_pcm_drain(handle);
             std::cerr << "new state " << snd_pcm_state(handle) << "\n";
             snd_pcm_prepare(handle);
