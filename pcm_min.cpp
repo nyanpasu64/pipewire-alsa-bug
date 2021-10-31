@@ -71,6 +71,28 @@ int drain = 0;
 static void thread_fn(Mutex<snd_pcm_t *> & mutex) {
     using namespace std::chrono_literals;
 
+    {
+        int err;
+        snd_pcm_t *handle;
+        if ((err = snd_pcm_open(&handle, device, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
+            printf("Playback open error: %s\n", snd_strerror(err));
+            exit(EXIT_FAILURE);
+        }
+        if ((err = snd_pcm_set_params(handle,
+                          SND_PCM_FORMAT_U8,
+                          SND_PCM_ACCESS_RW_INTERLEAVED,
+                          1,
+                          48000,
+                          1,
+                          500000)) < 0) {   /* 0.5sec */
+            printf("Playback open error: %s\n", snd_strerror(err));
+            exit(EXIT_FAILURE);
+        }
+
+        auto guard = mutex.lock();
+        *guard = handle;
+    }
+
     snd_pcm_sframes_t frames;
 
     while (1) {
@@ -108,26 +130,7 @@ int main(void)
     for (size_t i = 0; i < sizeof(buffer); i++)
         buffer[i] = random() & 0xff;
 
-    int err;
-    snd_pcm_t *handle;
-    if ((err = snd_pcm_open(&handle, device, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
-        printf("Playback open error: %s\n", snd_strerror(err));
-        exit(EXIT_FAILURE);
-    }
-    if ((err = snd_pcm_set_params(handle,
-                      SND_PCM_FORMAT_U8,
-                      SND_PCM_ACCESS_RW_INTERLEAVED,
-                      1,
-                      48000,
-                      1,
-                      500000)) < 0) {   /* 0.5sec */
-        printf("Playback open error: %s\n", snd_strerror(err));
-        exit(EXIT_FAILURE);
-    }
-
-    auto mutex = Mutex(handle);
-    handle = nullptr;
-
+    auto mutex = Mutex((snd_pcm_t *) nullptr);
     auto thread = std::thread(thread_fn, std::ref(mutex));
 
     while (true) {
@@ -137,6 +140,6 @@ int main(void)
         std::cerr << "Mutex locked.\n";
 
         auto handle = *guard;
-        drain = 4;
+        drain = 1;
     }
 }
