@@ -2,6 +2,10 @@
 
 This is a CMake project with two executables, alsa and pcm_min (corresponding to alsa.cpp and pcm_min.cpp).
 
+## pulse.cpp -> pulse-cpp
+
+Press Enter to call `pa_simple_drain`. Type `delay` and press Enter to call `pa_simple_drain` and sleep for 1 second.
+
 ## alsa.cpp
 
 "alsa" not only fails to play audio unless another app is already playing audio, but wedges pipewire in a status where Firefox can't start playing audio.

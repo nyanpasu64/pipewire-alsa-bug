@@ -8,6 +8,69 @@
 #include <pulse/simple.h>
 #include <pulse/error.h>
 
+#include <chrono>
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <thread>
+
+template<typename Ptr>
+class [[nodiscard]] Guard {
+    std::unique_lock<std::mutex> _guard;
+    Ptr _value;
+
+private:
+    /// Don't lock std::unique_lock; the factory methods will lock it.
+    Guard(std::mutex & mutex, Ptr value) :
+        _guard{mutex, std::defer_lock_t{}}, _value{value}
+    {}
+
+public:
+    static Guard make(std::mutex & mutex, Ptr value) {
+        Guard guard{mutex, value};
+        guard._guard.lock();
+        return guard;
+    }
+
+    static std::optional<Guard> try_make(std::mutex & mutex, Ptr value) {
+        Guard guard{mutex, value};
+        if (guard._guard.try_lock()) {
+            return guard;
+        } else {
+            return {};
+        }
+    }
+
+    explicit operator bool() const noexcept {
+        return _guard.operator bool();
+    }
+
+    typename std::pointer_traits<Ptr>::element_type & operator*() {
+        return *_value;
+    }
+
+    Ptr operator->() {
+        return _value;
+    }
+};
+
+template<typename T>
+class Mutex {
+    mutable std::mutex _mutex;
+    T _value;
+
+public:
+    explicit Mutex(T value) : _value(std::move(value)) {}
+
+    using GuardT = Guard<T *>;
+
+    /// Only call this in the GUI thread.
+    GuardT lock() {
+        return GuardT::make(_mutex, &_value);
+    }
+};
+
 constexpr size_t BUFSIZE = 1024;
 constexpr size_t NCHAN = 2;
 
@@ -29,15 +92,47 @@ static void mix_sine(float * buffer, uint64_t count, uint64_t samplerate, uint64
 }
 
 #define perr(...) fprintf(stderr, __VA_ARGS__)
+static constexpr uint32_t RATE = 44100;
+
+struct Shared {
+    pa_simple *s;
+};
+
+static void thread_fn(Mutex<Shared> & mutex) {
+    using namespace std::chrono_literals;
+
+    int error;
+
+    for (uint64_t t = 0;;) {
+        // If you don't sleep, the main thread *never* gets to acquire the mutex.
+        std::this_thread::sleep_for(5ms);
+
+        auto guard = mutex.lock();
+        auto s = guard->s;
+
+        mix_sine(mixbuffer, BUFSIZE, RATE, NCHAN, t);
+        t += BUFSIZE;
+
+        for(size_t i = 0; i < BUFSIZE * NCHAN; i++)
+            outbuffer[i] = round(mixbuffer[i]*0x7FFF);
+
+        /* ... and play it */
+        perr("writing...\n");
+        if (pa_simple_write(s, outbuffer, BUFSIZE * NCHAN * sizeof(int16_t), &error) < 0) {
+            fprintf(stderr, __FILE__": pa_simple_write() failed: %s\n", pa_strerror(error));
+            exit(1);
+        }
+        perr("done.\n");
+    }
+}
 
 int main(int argc, char*argv[]) {
-
-    uint32_t rate = 44100;
+    using namespace std::chrono_literals;
 
     /* The Sample format to use */
     static const pa_sample_spec ss = {
         .format = PA_SAMPLE_S16NE,
-        .rate = rate,
+        .rate = RATE,
         .channels = 2
     };
 
@@ -48,37 +143,28 @@ int main(int argc, char*argv[]) {
     /* Create a new playback stream */
     if (!(s = pa_simple_new(NULL, argv[0], PA_STREAM_PLAYBACK, NULL, "playback", &ss, NULL, NULL, &error))) {
         fprintf(stderr, __FILE__": pa_simple_new() failed: %s\n", pa_strerror(error));
-        goto finish;
+        exit(1);
     }
 
-    for (uint64_t t = 0;;) {
-        mix_sine(mixbuffer, BUFSIZE, rate, NCHAN, t);
-        t += BUFSIZE;
+    auto mutex = Mutex(Shared { .s = s });
+    s = nullptr;
 
-        for(size_t i = 0; i < BUFSIZE * NCHAN; i++)
-            outbuffer[i] = round(mixbuffer[i]*0x7FFF);
+    auto thread = std::thread(thread_fn, std::ref(mutex));
 
-        /* ... and play it */
-        perr("writing...\n");
-        if (pa_simple_write(s, outbuffer, BUFSIZE * NCHAN * sizeof(int16_t), &error) < 0) {
-            fprintf(stderr, __FILE__": pa_simple_write() failed: %s\n", pa_strerror(error));
-            goto finish;
+    std::string cmd;
+    while (true) {
+        std::getline(std::cin, cmd);
+        std::cerr << "Draining...\n";
+        auto guard = mutex.lock();
+        std::cerr << "Mutex locked.\n";
+
+        auto s = guard->s;
+        pa_simple_drain(s, &error);
+        if (error < 0) {
+            perr("uhh %s\n", pa_strerror(error));
         }
-        perr("done.\n");
+        if (cmd == "delay") {
+            std::this_thread::sleep_for(1s);
+        }
     }
-
-    /* Make sure that every single sample was played */
-    if (pa_simple_drain(s, &error) < 0) {
-        fprintf(stderr, __FILE__": pa_simple_drain() failed: %s\n", pa_strerror(error));
-        goto finish;
-    }
-
-    ret = 0;
-
-finish:
-
-    if (s)
-        pa_simple_free(s);
-
-    return ret;
 }

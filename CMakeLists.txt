@@ -40,4 +40,4 @@ target_link_libraries(pcm_min PRIVATE ALSA::ALSA Threads::Threads)
 
 add_executable(pulse-cpp pulse.cpp)
 target_compile_options(pulse-cpp PRIVATE "${options}")
-target_link_libraries(pulse-cpp PRIVATE pulse-simple pulse)
+target_link_libraries(pulse-cpp PRIVATE pulse-simple pulse Threads::Threads)
