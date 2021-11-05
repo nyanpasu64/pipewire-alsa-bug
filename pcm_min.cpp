@@ -49,9 +49,8 @@ int main(void)
         if (frames > 0 && frames < (long)sizeof(buffer))
             printf("Short write (expected %li, wrote %li)\n", (long)sizeof(buffer), frames);
 
-        ctr += 1;
-        if (ctr >= 8 && ctr != 9) {
-//            ctr -= 2;
+        if (ctr == 0) {
+            ctr += 1;
             printf("before drain, state %d\n", snd_pcm_state(handle));
             snd_pcm_drain(handle);
             printf("before prepare, state %d\n", snd_pcm_state(handle));
