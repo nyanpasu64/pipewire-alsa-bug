@@ -81,8 +81,8 @@ int main()
         samples = max(period, 1024);
         perr("pretend buffer size is %lu\n", samples);
 
-        // Unnecessary.
-        // TRY(snd_pcm_hw_params_set_buffer_size_near(device, parameters, &samples))
+        // Only necessary on hw devices.
+        TRY(snd_pcm_hw_params_set_buffer_size_near(device, parameters, &samples))
 
         TRY(snd_pcm_hw_params(device, parameters))
         snd_pcm_hw_params_free(parameters);
