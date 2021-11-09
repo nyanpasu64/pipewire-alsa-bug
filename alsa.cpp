@@ -49,7 +49,7 @@ int main()
     snd_pcm_t * device;
     TRY(snd_pcm_open(&device, "default", SND_PCM_STREAM_PLAYBACK, 0))
 
-    unsigned int MUT samplerate = 44100;
+    unsigned int MUT samplerate = 48000;
     unsigned int const channels = 2;
     snd_pcm_uframes_t MUT samples;
 
@@ -68,11 +68,12 @@ int main()
         snd_pcm_uframes_t period;
         int dir;
 
-        // returns 32. but anything below 236 hangs.
+        // Sets period = 32.
         TRY(snd_pcm_hw_params_get_period_size_min(parameters, &OUT period, &OUT dir))
 
-        // On default/max quantum 256, 384, or 512, 235 hangs, 236 doesn't.
-        period = 236;
+        // Setting this to ≤255, and running the app when no audio has played
+        // in the last ~3 seconds, locks up pipewire until you close the app.
+        period = 255;
 
         perr("min period size: %lu\n", period);
         TRY(snd_pcm_hw_params_set_period_size(device, parameters, period, dir))
@@ -80,6 +81,7 @@ int main()
         samples = max(period, 1024);
         perr("pretend buffer size is %lu\n", samples);
 
+        // Unnecessary.
         // TRY(snd_pcm_hw_params_set_buffer_size_near(device, parameters, &samples))
 
         TRY(snd_pcm_hw_params(device, parameters))
