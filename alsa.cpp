@@ -31,60 +31,60 @@ static void mix_sine(float * buffer, uint64_t count, uint64_t samplerate, uint64
 
 #define perr(...) fprintf(stderr, __VA_ARGS__)
 
+#define TRY(...) { \
+    auto _v = __VA_ARGS__; \
+    if (_v < 0) { \
+        printf("%s failed with error code %d", #__VA_ARGS__, _v); \
+        exit(1); \
+    } \
+}
+
+#define MUT
+#define OUT
+
 int main()
 {
     using namespace std::chrono_literals;
 
     snd_pcm_t * device;
-    snd_pcm_hw_params_t * parameters;
+    TRY(snd_pcm_open(&device, "default", SND_PCM_STREAM_PLAYBACK, 0))
 
-//    if(snd_pcm_open(&device, "default", SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK) < 0)
-    if(snd_pcm_open(&device, "default", SND_PCM_STREAM_PLAYBACK, 0) < 0)
-        return puts("Failed to open ALSA device"), 0;
+    unsigned int MUT samplerate = 44100;
+    unsigned int const channels = 2;
+    snd_pcm_uframes_t MUT samples;
 
-    if(snd_pcm_hw_params_malloc(&parameters) < 0)
-        return puts("Failed to allocate device parameter structure"), 0;
+    {
+        snd_pcm_hw_params_t * parameters;
+        TRY(snd_pcm_hw_params_malloc(&parameters))
 
-    if(snd_pcm_hw_params_any(device, parameters) < 0)
-        return puts("Failed to init device parameter structure"), 0;
+        TRY(snd_pcm_hw_params_any(device, parameters))
+        TRY(snd_pcm_hw_params_set_access(device, parameters, SND_PCM_ACCESS_RW_INTERLEAVED))
+        TRY(snd_pcm_hw_params_set_format(device, parameters, SND_PCM_FORMAT_S16_LE))
+        TRY(snd_pcm_hw_params_set_rate_near(device, parameters, &samplerate, 0))
+        TRY(snd_pcm_hw_params_set_channels(device, parameters, channels))
 
-    if(snd_pcm_hw_params_set_access(device, parameters, SND_PCM_ACCESS_RW_INTERLEAVED) < 0)
-        return puts("Failed to set access type"), 0;
+        perr("actual sample rate %d\n", samplerate);
 
-    if(snd_pcm_hw_params_set_format(device, parameters, SND_PCM_FORMAT_S16_LE) < 0)
-        return puts("Failed to set sample format"), 0;
+        snd_pcm_uframes_t period;
+        int dir;
 
-    unsigned int samplerate = 44100;
-    if(snd_pcm_hw_params_set_rate_near(device, parameters, &samplerate, 0) < 0)
-        return puts("Failed to set sample rate"), 0;
+        // returns 32. but anything below 236 hangs.
+        TRY(snd_pcm_hw_params_get_period_size_min(parameters, &OUT period, &OUT dir))
 
-    int channels = 2;
-    if(snd_pcm_hw_params_set_channels(device, parameters, channels) < 0)
-        return puts("Failed to set channel count"), 0;
+        // On default/max quantum 256, 384, or 512, 235 hangs, 236 doesn't.
+        period = 236;
 
-    perr("actual sample rate %d\n", samplerate);
+        perr("min period size: %lu\n", period);
+        TRY(snd_pcm_hw_params_set_period_size(device, parameters, period, dir))
 
-    snd_pcm_uframes_t period;
-    int dir;
+        samples = max(period, 1024);
+        perr("pretend buffer size is %lu\n", samples);
 
-    if(snd_pcm_hw_params_get_period_size_min(parameters, &period, &dir) < 0)
-        return puts("Failed to get period size"), 0;
+        // TRY(snd_pcm_hw_params_set_buffer_size_near(device, parameters, &samples))
 
-    perr("min period size: %lu\n", period);
-
-    if(snd_pcm_hw_params_set_period_size(device, parameters, period, dir) < 0)
-        return puts("Failed to set period size to the minimum provided by it"), 0;
-
-    snd_pcm_uframes_t samples = max(period, 1024);
-    perr("pretend buffer size is %lu\n", samples);
-
-    if(snd_pcm_hw_params_set_buffer_size_near(device, parameters, &samples) < 0)
-        return puts("Failed to set buffer size to something near our sample window"), 0;
-
-    if(snd_pcm_hw_params(device, parameters) < 0)
-        return puts("Failed to set device parameters"), 0;
-
-    snd_pcm_hw_params_free(parameters);
+        TRY(snd_pcm_hw_params(device, parameters))
+        snd_pcm_hw_params_free(parameters);
+    }
 
     if (snd_pcm_prepare(device) < 0)
         return puts("Failed to prepare device"), 0;
