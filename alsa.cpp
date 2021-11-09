@@ -111,6 +111,7 @@ int main()
 
         while(written == -EPIPE or written == -ESTRPIPE)
         {
+            perr("error %d\n", written);
             snd_pcm_recover(device, written, 0);
             written = snd_pcm_writei(device, outbuffer, render);
         }
