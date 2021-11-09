@@ -92,33 +92,25 @@ int main()
     uint64_t t = 0;
     while(1)
     {
-        if (t > 100'000) {
-            perr("sleeping for 1000ms\n");
-            std::this_thread::sleep_for(1000ms);
-            t = t % 100'000;
-        } else {
-            perr("sleeping for 1ms\n");
-            std::this_thread::sleep_for(1ms);
-        }
+        std::this_thread::sleep_for(1ms);
 
+        // Change this value to control how much gets written.
         int render = samples / 2;
-        if(render > 0)
+
+        mix_sine(mixbuffer, render, samplerate, 2, t);
+        t += render;
+
+        for(int i = 0; i < render*2; i++)
+            outbuffer[i] = round(mixbuffer[i]*0x7FFF);
+
+        perr("writing %d frames...\n", render);
+        auto written = snd_pcm_writei(device, outbuffer, render);
+        perr("done.\n");
+
+        while(written == -EPIPE or written == -ESTRPIPE)
         {
-            mix_sine(mixbuffer, render, samplerate, 2, t);
-            t += render;
-
-            for(int i = 0; i < render*2; i++)
-                outbuffer[i] = round(mixbuffer[i]*0x7FFF);
-
-            perr("writing...\n");
-            auto written = snd_pcm_writei(device, outbuffer, render);
-            perr("done.\n");
-
-            while(written == -EPIPE or written == -ESTRPIPE)
-            {
-                snd_pcm_recover(device, written, 0);
-                written = snd_pcm_writei(device, outbuffer, render);
-            }
+            snd_pcm_recover(device, written, 0);
+            written = snd_pcm_writei(device, outbuffer, render);
         }
     }
 
