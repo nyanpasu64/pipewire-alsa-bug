@@ -7,6 +7,7 @@
 #include <thread>
 
 static char const *device = "default";            /* playback device */
+// or "front:CARD=Audio,DEV=0"
 
 constexpr size_t FRAMES = 16 * 1024;
 constexpr size_t CHANNELS = 2;

@@ -48,6 +48,7 @@ int main()
 
     snd_pcm_t * device;
     TRY(snd_pcm_open(&device, "default", SND_PCM_STREAM_PLAYBACK, 0))
+    // or "front:CARD=Audio,DEV=0"
 
     unsigned int MUT samplerate = 48000;
     unsigned int const channels = 2;
