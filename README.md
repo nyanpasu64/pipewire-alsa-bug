@@ -4,11 +4,7 @@ This is a CMake project with two executables, alsa and pcm_min (corresponding to
 
 ## alsa.cpp
 
-"alsa" not only fails to play audio unless another app is already playing audio, but wedges pipewire in a status where Firefox can't start playing audio.
-
-alsa.cpp is designed to only call `snd_pcm_writei` based on the available room as measured by `snd_pcm_avail_update`, to avoid blocking. I'm not sure it's a good design. The issue is that on pipewire-alsa, with no other audio streams open, `snd_pcm_avail_update` never increases until you issue a blocking call to `snd_pcm_writei`. And since alsa.cpp is waiting for `snd_pcm_avail_update` to increase before calling `snd_pcm_writei`, it never makes progress. I'm not sure if this is a pipewire-alsa bug, or if alsa.cpp is making too many assumptions about `snd_pcm_avail_update`.
-
-Additionally, launching "alsa" without a stream already playing puts pipewire into a state where all other apps are stalled. In the current state, the program loops on `snd_pcm_avail_update` and stalls pipewire. If you change the program to ignore `snd_pcm_avail_update` and set `render` to a nonzero quantity (regardless if it's 1024, less, or greater), it blocks on `snd_pcm_writei` and stalls pipewire. This is a nasty pipewire/pipewire-alsa bug, possibly caused by the buffer size/count configuration chosen by alsa.cpp.
+On the FiiO E10K, PipeWire hangs and plays no audio when the server is running at a quantum below 256 frames/samples. The pipewire server enters a loop of printing `spa.alsa     | [      alsa-pcm.c: 1245 get_status()] front:2: snd_pcm_avail after recover: Broken pipe`.
 
 ## pcm_min.cpp
 
