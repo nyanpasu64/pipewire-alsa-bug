@@ -97,6 +97,8 @@ int main()
     {
         std::this_thread::sleep_for(1ms);
 
+        perr("snd_pcm_avail=%ld\n", snd_pcm_avail(device));
+
         // Change this value to control how much gets written.
         int render = samples / 2;
 
