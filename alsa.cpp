@@ -14,6 +14,7 @@
 
 double freq = 256;
 double volume = 0.2;
+constexpr size_t CHANNELS = 2;
 
 float mixbuffer[4096*256];
 int16_t outbuffer[4096*256];
@@ -47,11 +48,12 @@ int main()
     using namespace std::chrono_literals;
 
     snd_pcm_t * device;
-    TRY(snd_pcm_open(&device, "default", SND_PCM_STREAM_PLAYBACK, 0))
+    TRY(snd_pcm_open(&device, "front:CARD=Generic,DEV=0", SND_PCM_STREAM_PLAYBACK, 0))
     // or "front:CARD=Audio,DEV=0"
 
     unsigned int MUT samplerate = 48000;
     unsigned int const channels = 2;
+    snd_pcm_uframes_t MUT period;
     snd_pcm_uframes_t MUT samples;
 
     {
@@ -66,24 +68,16 @@ int main()
 
         perr("actual sample rate %d\n", samplerate);
 
-        snd_pcm_uframes_t period;
-        int dir;
+        period = 144;
+        int dir = 0;
+        perr("period size: %lu", period);
+        TRY(snd_pcm_hw_params_set_period_size_near(device, parameters, &period, &dir));
+        perr(" -> %lu (moved %d)\n", period, dir);
 
-        // Sets period = 32.
-        TRY(snd_pcm_hw_params_get_period_size_min(parameters, &OUT period, &OUT dir))
-
-        // Setting this to ≤255, and running the app when no audio has played
-        // in the last ~3 seconds, locks up pipewire until you close the app.
-        period = 255;
-
-        perr("min period size: %lu\n", period);
-        TRY(snd_pcm_hw_params_set_period_size(device, parameters, period, dir))
-
-        samples = max(period, 1024);
-        perr("pretend buffer size is %lu\n", samples);
-
-        // Only necessary on hw devices.
+        samples = 256;
+        perr("buffer size: %lu", samples);
         TRY(snd_pcm_hw_params_set_buffer_size_near(device, parameters, &samples))
+        perr(" -> %lu\n", samples);
 
         TRY(snd_pcm_hw_params(device, parameters))
         snd_pcm_hw_params_free(parameters);
@@ -100,22 +94,22 @@ int main()
         perr("snd_pcm_avail=%ld\n", snd_pcm_avail(device));
 
         // Change this value to control how much gets written.
-        int render = samples / 2;
+        uint64_t render = period;
 
-        mix_sine(mixbuffer, render, samplerate, 2, t);
+        mix_sine(mixbuffer, render, samplerate, CHANNELS, t);
         t += render;
 
-        for(int i = 0; i < render*2; i++)
-            outbuffer[i] = round(mixbuffer[i]*0x7FFF);
+        for(uint64_t i = 0; i < render*CHANNELS; i++)
+            outbuffer[i] = (int16_t) round(mixbuffer[i]*0x7FFF);
 
-        perr("writing %d frames...\n", render);
+        perr("writing %lu frames...\n", render);
         auto written = snd_pcm_writei(device, outbuffer, render);
         perr("done.\n");
 
         while(written == -EPIPE or written == -ESTRPIPE)
         {
-            perr("error %d\n", written);
-            snd_pcm_recover(device, written, 0);
+            perr("error %ld\n", written);
+            snd_pcm_recover(device, (int) written, 0);
             written = snd_pcm_writei(device, outbuffer, render);
         }
     }
