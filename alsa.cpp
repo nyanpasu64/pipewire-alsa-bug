@@ -35,7 +35,7 @@ static void mix_sine(float * buffer, uint64_t count, uint64_t samplerate, uint64
 #define TRY(...) { \
     auto _v = __VA_ARGS__; \
     if (_v < 0) { \
-        printf("%s failed with error code %d", #__VA_ARGS__, _v); \
+        perr("%s failed with error code %d\n", #__VA_ARGS__, _v); \
         exit(1); \
     } \
 }
