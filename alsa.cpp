@@ -83,6 +83,9 @@ int main()
         snd_pcm_hw_params_free(parameters);
     }
 
+    snd_pcm_get_params(device, &samples, &period);
+    perr("\nperiod size: %lu, sample count: %lu\n", period, samples);
+
     if (snd_pcm_prepare(device) < 0)
         return puts("Failed to prepare device"), 0;
 
@@ -91,7 +94,7 @@ int main()
     {
         std::this_thread::sleep_for(1ms);
 
-        perr("snd_pcm_avail=%ld\n", snd_pcm_avail(device));
+        perr("\nsnd_pcm_avail=%ld\n", snd_pcm_avail(device));
 
         // Change this value to control how much gets written.
         uint64_t render = period;
