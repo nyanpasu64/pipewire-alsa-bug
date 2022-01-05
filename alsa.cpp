@@ -86,6 +86,20 @@ int main()
     snd_pcm_get_params(device, &samples, &period);
     perr("\nperiod size: %lu, sample count: %lu\n", period, samples);
 
+    {
+        snd_pcm_sw_params_t * param;
+        TRY(snd_pcm_sw_params_malloc(&param));
+
+        snd_pcm_sw_params_current(device, OUT param);
+
+        snd_pcm_uframes_t boundary;
+        snd_pcm_sw_params_get_boundary(param, &OUT boundary);
+        perr("boundary: %lu\n", boundary);
+
+        TRY(snd_pcm_sw_params(device, param));
+        snd_pcm_sw_params_free(param);
+    }
+
     if (snd_pcm_prepare(device) < 0)
         return puts("Failed to prepare device"), 0;
 
