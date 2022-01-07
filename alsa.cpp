@@ -96,6 +96,9 @@ int main()
         snd_pcm_sw_params_get_boundary(param, &OUT boundary);
         perr("boundary: %lu\n", boundary);
 
+        // Never stop playing even upon xrun.
+        TRY(snd_pcm_sw_params_set_stop_threshold(device, param, boundary));
+
         TRY(snd_pcm_sw_params(device, param));
         snd_pcm_sw_params_free(param);
     }
@@ -106,7 +109,7 @@ int main()
     uint64_t t = 0;
     while(1)
     {
-        std::this_thread::sleep_for(1ms);
+        std::this_thread::sleep_for(500ms);
 
         perr("\nsnd_pcm_avail=%ld\n", snd_pcm_avail(device));
 
