@@ -97,7 +97,7 @@ int main()
         perr("boundary: %lu\n", boundary);
 
         // Never stop playing even upon xrun.
-        TRY(snd_pcm_sw_params_set_stop_threshold(device, param, boundary));
+        TRY(snd_pcm_sw_params_set_stop_threshold(device, param, (snd_pcm_uframes_t)-1));
 
         TRY(snd_pcm_sw_params(device, param));
         snd_pcm_sw_params_free(param);
